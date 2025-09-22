@@ -667,4 +667,427 @@ if not df.empty:
     # הצגת הנתונים
     if not filtered_df.empty:
         # הכנת הנתונים לתצוגה
-        display_df = filtered_df[['created_at', 'branch', 'chef_name', 'dish_name', '
+        display_df = filtered_df[['created_at', 'branch', 'chef_name', 'dish_name', 'overall_score', 'notes']].copy()
+        display_df['created_at'] = display_df['created_at'].dt.strftime('%d/%m/%Y %H:%M')
+        display_df = display_df.rename(columns={
+            'created_at': 'תאריך',
+            'branch': 'סניף', 
+            'chef_name': 'טבח',
+            'dish_name': 'מנה',
+            'overall_score': 'ציון',
+            'notes': 'הערות'
+        })
+        
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                'ציון': st.column_config.NumberColumn(
+                    'ציון',
+                    help='ציון איכות 1-10',
+                    min_value=1,
+                    max_value=10,
+                    format='%d ⭐'
+                ),
+                'תאריך': st.column_config.DatetimeColumn(
+                    'תאריך',
+                    format='DD/MM/YYYY HH:mm'
+                )
+            }
+        )
+        
+        # סטטיסטיקות מהירות
+        st.markdown("#### 📈 סטטיסטיקות מהירות")
+        stats_col1, stats_col2, stats_col3, stats_col4 = st.columns(4)
+        
+        with stats_col1:
+            st.metric("סה״כ בדיקות", len(filtered_df))
+        with stats_col2:
+            st.metric("ממוצע ציונים", f"{filtered_df['overall_score'].mean():.1f}")
+        with stats_col3:
+            st.metric("ציון הכי גבוה", filtered_df['overall_score'].max())
+        with stats_col4:
+            st.metric("ציון הכי נמוך", filtered_df['overall_score'].min())
+            
+    else:
+        st.info("🔍 לא נמצאו נתונים עבור הפילטרים שנבחרו.")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # =========================
+    # ----- CHARTS SECTION ----
+    # =========================
+    if not df.empty:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown("### 📊 גרפים וויזואליזציות")
+        
+        chart_tab1, chart_tab2, chart_tab3 = st.tabs(["📈 מגמות זמן", "🏪 השוואת סניפים", "🍽️ ביצועי מנות"])
+        
+        with chart_tab1:
+            st.markdown("#### מגמת ציונים לאורך זמן")
+            recent_df = last7_days(df)
+            if not recent_df.empty:
+                # קיבוץ לפי יום
+                daily_scores = recent_df.copy()
+                daily_scores['date'] = daily_scores['created_at'].dt.date
+                daily_avg = daily_scores.groupby('date')['overall_score'].mean().reset_index()
+                daily_avg['date'] = pd.to_datetime(daily_avg['date'])
+                
+                chart = alt.Chart(daily_avg).mark_line(
+                    point=True,
+                    strokeWidth=3,
+                    color='#10b981'
+                ).encode(
+                    x=alt.X('date:T', title='תאריך', axis=alt.Axis(labelAngle=45)),
+                    y=alt.Y('overall_score:Q', title='ממוצע ציון', scale=alt.Scale(domain=[0, 10])),
+                    tooltip=[
+                        alt.Tooltip('date:T', title='תאריך'),
+                        alt.Tooltip('overall_score:Q', title='ממוצע', format='.1f')
+                    ]
+                ).properties(
+                    width=600,
+                    height=300
+                ).resolve_scale(x='independent')
+                
+                st.altair_chart(chart, use_container_width=True)
+            else:
+                st.info("אין מספיק נתונים מהשבוע האחרון")
+        
+        with chart_tab2:
+            st.markdown("#### השוואת ביצועי סניפים (7 ימים)")
+            recent_df = last7_days(df)
+            if not recent_df.empty:
+                branch_scores = recent_df.groupby('branch')['overall_score'].agg(['mean', 'count']).reset_index()
+                branch_scores = branch_scores[branch_scores['count'] >= 2]  # מינימום 2 בדיקות
+                
+                if not branch_scores.empty:
+                    chart = alt.Chart(branch_scores).mark_bar(
+                        color='#10b981',
+                        size=40
+                    ).encode(
+                        x=alt.X('branch:N', title='סניף', sort='-y', axis=alt.Axis(labelAngle=0)),
+                        y=alt.Y('mean:Q', title='ממוצע ציון', scale=alt.Scale(domain=[0, 10])),
+                        tooltip=[
+                            alt.Tooltip('branch:N', title='סניף'),
+                            alt.Tooltip('mean:Q', title='ממוצע', format='.2f'),
+                            alt.Tooltip('count:Q', title='מספר בדיקות')
+                        ]
+                    ).properties(
+                        width=600,
+                        height=300
+                    )
+                    
+                    st.altair_chart(chart, use_container_width=True)
+                else:
+                    st.info("אין מספיק נתונים להשוואת סניפים")
+            else:
+                st.info("אין נתונים מהשבוע האחרון")
+        
+        with chart_tab3:
+            st.markdown("#### ביצועי המנות הפופולריות")
+            recent_df = last7_days(df)
+            if not recent_df.empty:
+                dish_scores = recent_df.groupby('dish_name')['overall_score'].agg(['mean', 'count']).reset_index()
+                popular_dishes = dish_scores[dish_scores['count'] >= 3].nlargest(10, 'count')  # 10 המנות הפופולריות
+                
+                if not popular_dishes.empty:
+                    chart = alt.Chart(popular_dishes).mark_circle(
+                        size=100,
+                        color='#10b981',
+                        opacity=0.7
+                    ).encode(
+                        x=alt.X('mean:Q', title='ממוצע ציון', scale=alt.Scale(domain=[0, 10])),
+                        y=alt.Y('dish_name:N', title='מנה', sort='-x'),
+                        size=alt.Size('count:Q', title='מספר בדיקות', scale=alt.Scale(range=[100, 500])),
+                        tooltip=[
+                            alt.Tooltip('dish_name:N', title='מנה'),
+                            alt.Tooltip('mean:Q', title='ממוצע', format='.2f'),
+                            alt.Tooltip('count:Q', title='בדיקות')
+                        ]
+                    ).properties(
+                        width=600,
+                        height=400
+                    )
+                    
+                    st.altair_chart(chart, use_container_width=True)
+                else:
+                    st.info("אין מספיק נתונים על מנות")
+            else:
+                st.info("אין נתונים מהשבוע האחרון")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# =========================
+# ---- EXPORT SECTION -----
+# =========================
+if not df.empty and auth["role"] == "meta":
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("### 📤 ייצוא נתונים")
+    
+    export_col1, export_col2, export_col3 = st.columns(3)
+    
+    with export_col1:
+        if st.button("📊 ייצוא Excel", key="export_excel"):
+            try:
+                # יצירת קובץ Excel
+                output_df = df[['created_at', 'branch', 'chef_name', 'dish_name', 'overall_score', 
+                              'taste_score', 'appearance_score', 'temperature_score', 
+                              'preparation_time_score', 'portion_size_score', 'notes']].copy()
+                
+                # תרגום שמות עמודות
+                output_df = output_df.rename(columns={
+                    'created_at': 'תאריך ושעה',
+                    'branch': 'סניף',
+                    'chef_name': 'שם טבח',
+                    'dish_name': 'שם מנה',
+                    'overall_score': 'ציון כללי',
+                    'taste_score': 'ציון טעם',
+                    'appearance_score': 'ציון מראה',
+                    'temperature_score': 'ציון טמפרטורה',
+                    'preparation_time_score': 'ציון זמן הכנה',
+                    'portion_size_score': 'ציון כמות',
+                    'notes': 'הערות'
+                })
+                
+                # המרת תאריכים לפורמט נוח
+                output_df['תאריך ושעה'] = output_df['תאריך ושעה'].dt.strftime('%d/%m/%Y %H:%M')
+                
+                # יצירת קובץ זמני
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"giraffe_quality_report_{timestamp}.xlsx"
+                
+                # שמירה לזיכרון
+                from io import BytesIO
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    output_df.to_excel(writer, sheet_name='בדיקות איכות', index=False)
+                
+                processed_data = output.getvalue()
+                
+                st.download_button(
+                    label="💾 הורד קובץ Excel",
+                    data=processed_data,
+                    file_name=filename,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                
+                st.success(f"✅ קובץ Excel מוכן להורדה: {filename}")
+                
+            except Exception as e:
+                st.error(f"❌ שגיאה ביצירת קובץ Excel: {e}")
+    
+    with export_col2:
+        if st.button("📄 ייצוא CSV", key="export_csv"):
+            try:
+                # הכנת CSV
+                csv_df = df[['created_at', 'branch', 'chef_name', 'dish_name', 'overall_score', 'notes']].copy()
+                csv_df['created_at'] = csv_df['created_at'].dt.strftime('%d/%m/%Y %H:%M')
+                
+                csv_data = csv_df.to_csv(index=False, encoding='utf-8-sig')  # utf-8-sig לתמיכה בעברית
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"giraffe_quality_{timestamp}.csv"
+                
+                st.download_button(
+                    label="💾 הורד קובץ CSV",
+                    data=csv_data,
+                    file_name=filename,
+                    mime="text/csv"
+                )
+                
+                st.success("✅ קובץ CSV מוכן להורדה")
+                
+            except Exception as e:
+                st.error(f"❌ שגיאה ביצירת קובץ CSV: {e}")
+    
+    with export_col3:
+        if st.button("📋 ייצוא JSON", key="export_json"):
+            try:
+                # הכנת JSON
+                json_df = df.copy()
+                json_df['created_at'] = json_df['created_at'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                
+                json_data = json_df.to_json(orient='records', force_ascii=False, indent=2)
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"giraffe_quality_{timestamp}.json"
+                
+                st.download_button(
+                    label="💾 הורד קובץ JSON",
+                    data=json_data,
+                    file_name=filename,
+                    mime="application/json"
+                )
+                
+                st.success("✅ קובץ JSON מוכן להורדה")
+                
+            except Exception as e:
+                st.error(f"❌ שגיאה ביצירת קובץ JSON: {e}")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# =========================
+# ---- ADMIN SECTION ------
+# =========================
+if auth["role"] == "meta":
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("### ⚙️ הגדרות מערכת")
+    
+    admin_tab1, admin_tab2, admin_tab3 = st.tabs(["🎛️ הגדרות כלליות", "🗃️ ניהול נתונים", "📊 סטטיסטיקות מתקדמות"])
+    
+    with admin_tab1:
+        st.markdown("#### הגדרות מערכת")
+        settings = db_manager.get_settings()
+        
+        # הגדרות בסיסיות
+        target_score = st.number_input(
+            "ציון מטרה כללי", 
+            value=float(settings.get('target_overall_score', '8.0')),
+            min_value=1.0,
+            max_value=10.0,
+            step=0.1
+        )
+        
+        min_weekly_checks = st.number_input(
+            "מספר בדיקות מינימלי בשבוע לטבח",
+            value=int(settings.get('min_chef_reviews_weekly', '2')),
+            min_value=1,
+            max_value=20
+        )
+        
+        alert_threshold = st.number_input(
+            "ציון התראה (התראה על ציונים נמוכים מ-)",
+            value=float(settings.get('alert_low_score', '6.0')),
+            min_value=1.0,
+            max_value=10.0,
+            step=0.1
+        )
+        
+        if st.button("💾 שמור הגדרות"):
+            try:
+                db_manager.update_setting('target_overall_score', str(target_score))
+                db_manager.update_setting('min_chef_reviews_weekly', str(min_weekly_checks))
+                db_manager.update_setting('alert_low_score', str(alert_threshold))
+                st.success("✅ הגדרות נשמרו בהצלחה")
+            except Exception as e:
+                st.error(f"❌ שגיאה בשמירת הגדרות: {e}")
+    
+    with admin_tab2:
+        st.markdown("#### ניהול נתונים")
+        
+        # סטטיסטיקות DB
+        total_checks = len(df)
+        unique_branches = df['branch'].nunique() if not df.empty else 0
+        unique_chefs = df['chef_name'].nunique() if not df.empty else 0
+        unique_dishes = df['dish_name'].nunique() if not df.empty else 0
+        
+        info_col1, info_col2, info_col3, info_col4 = st.columns(4)
+        with info_col1:
+            st.metric("סה״כ בדיקות", total_checks)
+        with info_col2:
+            st.metric("סניפים פעילים", unique_branches)
+        with info_col3:
+            st.metric("טבחים רשומים", unique_chefs)
+        with info_col4:
+            st.metric("מנות שנבדקו", unique_dishes)
+        
+        # גיבוי נתונים
+        st.markdown("##### 💾 גיבוי וייצוא")
+        if st.button("📦 צור גיבוי מלא", key="backup_db"):
+            try:
+                backup_data = {
+                    'quality_checks': df.to_dict('records'),
+                    'branches': Config.BRANCHES,
+                    'dishes': Config.DISHES,
+                    'chefs_by_branch': Config.CHEFS_BY_BRANCH,
+                    'backup_timestamp': datetime.now().isoformat(),
+                    'total_records': len(df)
+                }
+                
+                backup_json = json.dumps(backup_data, ensure_ascii=False, indent=2, default=str)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"giraffe_backup_{timestamp}.json"
+                
+                st.download_button(
+                    label="💾 הורד גיבוי",
+                    data=backup_json,
+                    file_name=filename,
+                    mime="application/json"
+                )
+                
+                st.success(f"✅ גיבוי מוכן: {len(df)} רשומות")
+            except Exception as e:
+                st.error(f"❌ שגיאה ביצירת גיבוי: {e}")
+    
+    with admin_tab3:
+        st.markdown("#### סטטיסטיקות מתקדמות")
+        
+        if not df.empty:
+            # חלוקת ציונים
+            st.markdown("##### 📊 חלוקת ציונים")
+            score_dist = df['overall_score'].value_counts().sort_index()
+            
+            score_chart = alt.Chart(score_dist.reset_index()).mark_bar(
+                color='#10b981'
+            ).encode(
+                x=alt.X('overall_score:O', title='ציון'),
+                y=alt.Y('count:Q', title='כמות בדיקות'),
+                tooltip=['overall_score:O', 'count:Q']
+            ).properties(
+                width=600,
+                height=300,
+                title='התפלגות ציונים'
+            )
+            
+            st.altair_chart(score_chart, use_container_width=True)
+            
+            # מגמות חודשיות
+            st.markdown("##### 📈 מגמות חודשיות")
+            if len(df) > 30:  # רק אם יש מספיק נתונים
+                monthly_df = df.copy()
+                monthly_df['month'] = monthly_df['created_at'].dt.to_period('M')
+                monthly_stats = monthly_df.groupby('month').agg({
+                    'overall_score': ['mean', 'count'],
+                    'id': 'count'
+                }).reset_index()
+                
+                monthly_stats.columns = ['month', 'avg_score', 'score_count', 'total_checks']
+                monthly_stats['month'] = monthly_stats['month'].dt.to_timestamp()
+                
+                monthly_chart = alt.Chart(monthly_stats).mark_line(
+                    point=True,
+                    strokeWidth=3,
+                    color='#10b981'
+                ).encode(
+                    x=alt.X('month:T', title='חודש'),
+                    y=alt.Y('avg_score:Q', title='ממוצע ציון'),
+                    tooltip=[
+                        alt.Tooltip('month:T', title='חודש'),
+                        alt.Tooltip('avg_score:Q', title='ממוצע', format='.2f'),
+                        alt.Tooltip('total_checks:Q', title='בדיקות')
+                    ]
+                ).properties(
+                    width=600,
+                    height=300,
+                    title='מגמת ציונים חודשית'
+                )
+                
+                st.altair_chart(monthly_chart, use_container_width=True)
+            else:
+                st.info("נדרשות לפחות 30 בדיקות להצגת מגמות חודשיות")
+        else:
+            st.info("אין נתונים זמינים לסטטיסטיקות")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# =========================
+# ------- FOOTER ----------
+# =========================
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666; font-size: 14px; padding: 20px;'>
+    🦒 <b>מערכת ניהול איכות ג'ירף</b> | מופעל על ידי Claude AI<br>
+    📧 לתמיכה טכנית: ohad@giraffe.co.il | 📞 03-1234567
+</div>
+""", unsafe_allow_html=True)
