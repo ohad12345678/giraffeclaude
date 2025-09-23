@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/giraffe_quality
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - DEBUG=false
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+    networks:
+      - giraffe_network
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - giraffe_network
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=giraffe_quality
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - giraffe_network
+
+volumes:
+  postgres_data:
+  uploads_data:
+
+networks:
+  giraffe_network:
+    driver: bridge
