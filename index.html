@@ -1,0 +1,578 @@
+# Kitchen Management System - Pure HTML/JS (No Node.js Required)
+# Creates a complete frontend using CDN libraries
+
+Write-Host "🍴 Building Kitchen Management Frontend (No Node.js)" -ForegroundColor Green
+Write-Host "📂 Current Directory: $(Get-Location)" -ForegroundColor Yellow
+
+# Check if we're in the right directory
+if (-not (Test-Path "backend") -or -not (Test-Path "src")) {
+    Write-Host "❌ Error: Please run this from the appnew directory" -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
+# Clean src directory
+if (Test-Path "src\*") {
+    Write-Host "🧹 Cleaning src directory..." -ForegroundColor Yellow
+    Remove-Item "src\*" -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Set-Location "src"
+
+# Create main HTML file
+Write-Host "📄 Creating index.html..." -ForegroundColor Cyan
+$indexHtml = @'
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת ניהול מטבח - Giraffe</title>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- React and ReactDOM from CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Assistant', sans-serif;
+            direction: rtl;
+            background: linear-gradient(135deg, #fff9c4 0%, #fff3a0 100%);
+            min-height: 100vh;
+        }
+        
+        .app {
+            min-height: 100vh;
+        }
+        
+        /* Login Styles */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .login-header h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .login-header h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #666;
+            font-weight: 400;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: 'Assistant', sans-serif;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .error-message {
+            color: #f44336;
+            text-align: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #ffebee;
+            border-radius: 5px;
+        }
+        
+        .login-button {
+            width: 100%;
+            padding: 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-family: 'Assistant', sans-serif;
+            transition: background-color 0.3s;
+        }
+        
+        .login-button:hover {
+            background-color: #45a049;
+        }
+        
+        .login-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .login-demo {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .login-demo h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .login-demo p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        /* Dashboard Styles */
+        .dashboard {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .dashboard-header {
+            margin-bottom: 30px;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+        
+        .header-title h1 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .header-title p {
+            margin: 5px 0 0 0;
+            color: #666;
+        }
+        
+        .logout-button {
+            padding: 8px 16px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Assistant', sans-serif;
+        }
+        
+        .logout-button:hover {
+            background-color: #d32f2f;
+        }
+        
+        .restaurants-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .restaurant-card {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .restaurant-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+        }
+        
+        .restaurant-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .restaurant-header h3 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-badge.green {
+            background: #e8f5e8;
+            color: #2e7d2e;
+        }
+        
+        .status-badge.red {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .restaurant-info {
+            margin-bottom: 15px;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .info-item .label {
+            color: #666;
+        }
+        
+        .info-item .value {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .restaurant-footer {
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+        
+        .error-container button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Assistant', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        // API Configuration
+        const API_BASE_URL = 'https://giraffeclaude-1.onrender.com';
+        
+        const api = axios.create({
+            baseURL: API_BASE_URL,
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        api.interceptors.request.use(config => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
+            return config;
+        });
+        
+        // Login Component
+        const Login = ({ onLogin }) => {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+            
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError('');
+                
+                try {
+                    const response = await api.post('/auth/login', { username, password });
+                    const { access_token, user_type } = response.data;
+                    
+                    localStorage.setItem('token', access_token);
+                    localStorage.setItem('userType', user_type);
+                    localStorage.setItem('username', username);
+                    
+                    onLogin(user_type);
+                } catch (err) {
+                    setError(err.response?.data?.detail || 'שגיאה בהתחברות');
+                } finally {
+                    setLoading(false);
+                }
+            };
+            
+            return (
+                <div className="login-container">
+                    <div className="login-card">
+                        <div className="login-header">
+                            <h1>🦒 Giraffe</h1>
+                            <h2>מערכת ניהול מטבח</h2>
+                        </div>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label htmlFor="username">שם משתמש</label>
+                                <input
+                                    type="text"
+                                    id="username"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    required
+                                    placeholder="headquarters / haifa_user"
+                                />
+                            </div>
+                            
+                            <div className="form-group">
+                                <label htmlFor="password">סיסמה</label>
+                                <input
+                                    type="password"
+                                    id="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                    placeholder="admin123 / haifa123"
+                                />
+                            </div>
+                            
+                            {error && <div className="error-message">{error}</div>}
+                            
+                            <button type="submit" disabled={loading} className="login-button">
+                                {loading ? 'מתחבר...' : 'התחבר'}
+                            </button>
+                        </form>
+                        
+                        <div className="login-demo">
+                            <h3>חשבונות לדוגמה:</h3>
+                            <p><strong>מטה:</strong> headquarters / admin123</p>
+                            <p><strong>מסעדה:</strong> haifa_user / haifa123</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // Dashboard Component
+        const Dashboard = ({ userType, onLogout }) => {
+            const [restaurants, setRestaurants] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState('');
+            
+            useEffect(() => {
+                fetchRestaurants();
+            }, []);
+            
+            const fetchRestaurants = async () => {
+                try {
+                    const response = await api.get('/restaurants');
+                    setRestaurants(response.data);
+                    setError('');
+                } catch (err) {
+                    setError('שגיאה בטעינת המסעדות');
+                } finally {
+                    setLoading(false);
+                }
+            };
+            
+            if (loading) {
+                return (
+                    <div className="loading-container">
+                        <div className="loading-spinner"></div>
+                        <p>טוען נתונים...</p>
+                    </div>
+                );
+            }
+            
+            if (error) {
+                return (
+                    <div className="error-container">
+                        <p>{error}</p>
+                        <button onClick={fetchRestaurants}>נסה שוב</button>
+                    </div>
+                );
+            }
+            
+            return (
+                <div className="dashboard">
+                    <header className="dashboard-header">
+                        <div className="header-content">
+                            <div className="header-title">
+                                <h1>🦒 מערכת ניהול מטבח</h1>
+                                <p>שלום, {userType === 'headquarters' ? 'מנהל מטה' : 'מנהל מסעדה'}</p>
+                            </div>
+                            <button onClick={onLogout} className="logout-button">
+                                יציאה
+                            </button>
+                        </div>
+                    </header>
+                    
+                    <div className="restaurants-grid">
+                        {restaurants.map(restaurant => (
+                            <div key={restaurant.id} className="restaurant-card">
+                                <div className="restaurant-header">
+                                    <h3>{restaurant.name}</h3>
+                                    <span className={`status-badge ${restaurant.is_active ? 'green' : 'red'}`}>
+                                        {restaurant.is_active ? 'פעיל' : 'לא פעיל'}
+                                    </span>
+                                </div>
+                                
+                                <div className="restaurant-info">
+                                    <div className="info-item">
+                                        <span className="label">👨‍🍳 טבחים:</span>
+                                        <span className="value">{restaurant.chef_count || 0}</span>
+                                    </div>
+                                    
+                                    <div className="info-item">
+                                        <span className="label">⭐ ציון איכות:</span>
+                                        <span className="value">
+                                            {(restaurant.avg_quality_score || 0).toFixed(1)}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="info-item">
+                                        <span className="label">מזהה:</span>
+                                        <span className="value">{restaurant.id}</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="restaurant-footer">
+                                    <span>לחץ לפרטים מלאים ←</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+        
+        // Main App Component
+        const App = () => {
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [userType, setUserType] = useState('');
+            
+            useEffect(() => {
+                const token = localStorage.getItem('token');
+                const savedUserType = localStorage.getItem('userType');
+                if (token && savedUserType) {
+                    setIsLoggedIn(true);
+                    setUserType(savedUserType);
+                }
+            }, []);
+            
+            const handleLogin = (type) => {
+                setIsLoggedIn(true);
+                setUserType(type);
+            };
+            
+            const handleLogout = () => {
+                localStorage.clear();
+                setIsLoggedIn(false);
+                setUserType('');
+            };
+            
+            return (
+                <div className="app">
+                    {isLoggedIn ? (
+                        <Dashboard userType={userType} onLogout={handleLogout} />
+                    ) : (
+                        <Login onLogin={handleLogin} />
+                    )}
+                </div>
+            );
+        };
+        
+        // Render the app
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
+'@
+
+$indexHtml | Out-File -FilePath "index.html" -Encoding UTF8
+
+Write-Host "🎉 HTML Frontend created successfully!" -ForegroundColor Green
+Write-Host "📁 Location: $(Get-Location)" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "To run:" -ForegroundColor Cyan
+Write-Host "1. Open index.html in your browser" -ForegroundColor White
+Write-Host "2. Or use a local server if you have one" -ForegroundColor White
+Write-Host ""
+Write-Host "Login credentials:" -ForegroundColor Yellow
+Write-Host "• headquarters / admin123" -ForegroundColor White  
+Write-Host "• haifa_user / haifa123" -ForegroundColor White
+
+# Try to open in default browser
+$openBrowser = Read-Host "Open in browser now? (y/n)"
+if ($openBrowser -eq 'y' -or $openBrowser -eq 'Y') {
+    Start-Process "index.html"
+}
