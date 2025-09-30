@@ -1,0 +1,66 @@
+מבנה הפרויקט - Kitchen Management System
+
+ארכיטקטורה כללית:
+הפרויקט מורכב מ-4 שירותים עיקריים בDocker:
+
+1. Frontend (React) - פורט 3000
+2. Backend (Python/FastAPI) - פורט 8000  
+3. Database (PostgreSQL) - פורט 5432
+4. Adminer (ניהול DB) - פורט 8080
+
+מבנה התיקיות:
+
+appnew/
+├── backend/                    # שרת Python
+│   ├── app/
+│   │   ├── models/            # מודלים של הנתונים
+│   │   │   ├── users/         # משתמשים
+│   │   │   ├── restaurants/   # מסעדות
+│   │   │   ├── tasks/         # משימות
+│   │   │   ├── food_quality/  # איכות מזון
+│   │   │   └── chef_training/ # הכשרת שפים
+│   │   ├── routes/            # נתיבי API
+│   │   │   ├── auth/          # אימות משתמשים
+│   │   │   ├── restaurants/   # ניהול מסעדות
+│   │   │   └── analytics/     # דוחות ואנליטיקה
+│   │   ├── services/          # לוגיקה עסקית
+│   │   │   ├── ai/            # שירותי AI
+│   │   │   ├── auth/          # שירותי אימות
+│   │   │   └── charts/        # שירותי גרפים
+│   │   ├── database/          # חיבור לDB
+│   │   └── middleware/        # אבטחה
+│   └── requirements.txt       # תלויות Python
+│
+├── src/                       # Frontend (React)
+│   ├── components/
+│   │   ├── Dashboard.js       # לוח הבקרה
+│   │   └── Login.js          # כניסה למערכת
+│   ├── services/
+│   │   └── api.js            # תקשורת עם השרת
+│   └── styles/
+│       └── App.css           # עיצוב
+│
+├── data/                      # נתונים ראשוניים
+│   └── initial_restaurants.json
+│
+└── docker-compose.yml         # הגדרות Docker
+
+שירותי המערכת:
+
+Backend Services:
+- AI Module - לבינה מלאכותית ואוטומציה
+- Food Quality - בקרת איכות מזון
+- Chef Training - הכשרת שפים
+- Analytics - דוחות ואנליטיקה
+- Authentication - אבטחה וניהול משתמשים
+
+Database:
+- PostgreSQL עם Adminer לניהול נוח
+
+איך להריץ:
+docker-compose up -d
+
+גישה למערכת:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- Database Admin: http://localhost:8080

@@ -1,183 +1,203 @@
-﻿from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
-from typing import List, Optional
-from datetime import datetime, timedelta
-from models import *
-from database import get_db, create_tables
-import database as db_models
-from auth import *
+﻿from flask import Flask, request, jsonify, render_template_string
+from flask_cors import CORS
+import os
+from datetime import datetime
 
-app = FastAPI(title="Kitchen Management API", version="1.0.0")
+app = Flask(__name__)
+CORS(app)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# נתוני משתמשים
+users = {
+    "headquarters": {"password": "admin123", "role": "admin", "name": "מטה ראשי"},
+    "haifa_user": {"password": "haifa123", "role": "manager", "name": "סניף חיפה"}
+}
 
-# Create database tables and initial data on startup
-@app.on_event("startup")
-async def startup_event():
-    create_tables()
-    db = next(get_db())
-    
-    # Add initial restaurants if empty
-    if db.query(db_models.Restaurant).count() == 0:
-        initial_restaurants = [
-            db_models.Restaurant(id=1, name="חיפה", location="חיפה"),
-            db_models.Restaurant(id=2, name="הרצליה", location="הרצליה"),
-            db_models.Restaurant(id=3, name="פתח תקווה", location="פתח תקווה"),
-            db_models.Restaurant(id=4, name="נס ציונה", location="נס ציונה"),
-            db_models.Restaurant(id=5, name="רמה\"ח", location="רמת החיל"),
-            db_models.Restaurant(id=6, name="סביון", location="סביון"),
-            db_models.Restaurant(id=7, name="מודיעין", location="מודיעין"),
-            db_models.Restaurant(id=8, name="לנדמק", location="לנדמק"),
-            db_models.Restaurant(id=9, name="ראשלצ", location="ראש לציון")
+# נתונים זמניים
+restaurants_data = {
+    "headquarters": {
+        "name": "מטה ראשי",
+        "chefs": [
+            {"name": "אמיר כהן", "rating": 9.2, "last_check": "2024-09-25"},
+            {"name": "שרה לוי", "rating": 8.8, "last_check": "2024-09-24"}
+        ],
+        "tasks": [
+            {"task": "בדיקת איכות בוקר", "status": "completed", "date": "2024-09-27"},
+            {"task": "הכשרת טבח חדש", "status": "pending", "date": "2024-09-28"}
         ]
-        db.add_all(initial_restaurants)
-        db.commit()
-    
-    # Add initial users if empty
-    if db.query(db_models.User).count() == 0:
-        initial_users = [
-            # משתמש מטה
-            db_models.User(
-                username="headquarters",
-                hashed_password=get_password_hash("admin123"),
-                role="headquarters",
-                restaurant_id=None
-            ),
-            # משתמשי מסעדות לדוגמה
-            db_models.User(
-                username="haifa_user",
-                hashed_password=get_password_hash("haifa123"),
-                role="restaurant",
-                restaurant_id=1
-            ),
-            db_models.User(
-                username="herzliya_user", 
-                hashed_password=get_password_hash("herzliya123"),
-                role="restaurant",
-                restaurant_id=2
-            )
+    },
+    "haifa_user": {
+        "name": "סניף חיפה", 
+        "chefs": [
+            {"name": "יוסי מזרחי", "rating": 8.5, "last_check": "2024-09-26"},
+            {"name": "רחל אברהם", "rating": 9.0, "last_check": "2024-09-25"}
+        ],
+        "tasks": [
+            {"task": "ניקיון מטבח", "status": "completed", "date": "2024-09-27"},
+            {"task": "הזמנת חומרי גלם", "status": "pending", "date": "2024-09-28"}
         ]
-        db.add_all(initial_users)
-        db.commit()
+    }
+}
 
-# Auth endpoints
-@app.post("/auth/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = authenticate_user(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="שם משתמש או סיסמה שגויים",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giraffe - מערכת ניהול מטבח</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: Arial, sans-serif; 
+            background: #f5f1a8; 
+            min-height: 100vh; 
+            direction: rtl;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 20px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 400px;
+            text-align: center;
+        }
+        .logo { font-size: 3rem; margin-bottom: 20px; }
+        .title { font-size: 2rem; color: #2d3748; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; text-align: right; }
+        .form-label { display: block; margin-bottom: 8px; color: #4a5568; font-weight: bold; }
+        .form-input { 
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid #e2e8f0; 
+            border-radius: 10px; 
+            font-size: 1rem;
+        }
+        .login-btn { 
+            width: 100%; 
+            background: #4c7c54; 
+            color: white; 
+            border: none; 
+            padding: 14px; 
+            border-radius: 10px; 
+            font-size: 1.1rem; 
+            cursor: pointer; 
+            margin-bottom: 20px;
+        }
+        .login-btn:hover { background: #3d6444; }
+        .message { margin-top: 10px; font-weight: bold; }
+        .error { color: #e53e3e; }
+        .success { color: #38a169; }
+        .demo-info { 
+            margin-top: 30px; 
+            color: #718096; 
+            font-size: 0.9rem; 
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🦒</div>
+        <h1 class="title">Giraffe - מערכת ניהול מטבח</h1>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label class="form-label">שם משתמש</label>
+                <input type="text" id="username" class="form-input" placeholder="headquarters / haifa_user" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">סיסמה</label>
+                <input type="password" id="password" class="form-input" placeholder="admin123 / haifa123" required>
+            </div>
+            
+            <button type="submit" class="login-btn">התחבר</button>
+            
+            <div id="message"></div>
+        </form>
+        
+        <div class="demo-info">
+            <strong>פרטי התחברות לדוגמה:</strong><br>
+            headquarters / admin123<br>
+            haifa_user / haifa123
+        </div>
+    </div>
 
-@app.post("/auth/register", response_model=UserInDB)
-async def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = get_user_by_username(db, user.username)
-    if db_user:
-        raise HTTPException(status_code=400, detail="שם המשתמש כבר קיים")
-    
-    hashed_password = get_password_hash(user.password)
-    db_user = db_models.User(
-        username=user.username,
-        hashed_password=hashed_password,
-        role=user.role,
-        restaurant_id=user.restaurant_id
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    
-    return UserInDB(
-        id=db_user.id,
-        username=db_user.username,
-        role=UserRole(db_user.role),
-        restaurant_id=db_user.restaurant_id,
-        is_active=db_user.is_active
-    )
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const messageDiv = document.getElementById('message');
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    messageDiv.innerHTML = '<div class="message success">התחברות הצליחה! ✅</div>';
+                    setTimeout(() => {
+                        alert('ברוך הבא למערכת ' + data.user.name + '!\\nהמערכת פועלת בהצלחה.');
+                    }, 1000);
+                } else {
+                    messageDiv.innerHTML = '<div class="message error">' + data.message + '</div>';
+                }
+            } catch (error) {
+                messageDiv.innerHTML = '<div class="message error">שגיאה בהתחברות</div>';
+            }
+        });
+    </script>
+</body>
+</html>
+"""
 
-@app.get("/auth/me", response_model=UserInDB)
-async def read_users_me(current_user: db_models.User = Depends(get_current_active_user)):
-    return UserInDB(
-        id=current_user.id,
-        username=current_user.username,
-        role=UserRole(current_user.role),
-        restaurant_id=current_user.restaurant_id,
-        is_active=current_user.is_active
-    )
+@app.route('/')
+def home():
+    return render_template_string(HTML_TEMPLATE)
 
-# Protected Restaurant endpoints
-@app.get("/restaurants", response_model=List[Restaurant])
-async def get_restaurants(current_user: db_models.User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    if current_user.role == "headquarters":
-        restaurants = db.query(db_models.Restaurant).all()
-    else:
-        restaurants = db.query(db_models.Restaurant).filter(db_models.Restaurant.id == current_user.restaurant_id).all()
-    return restaurants
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        
+        if username in users and users[username]['password'] == password:
+            user_data = users[username].copy()
+            user_data['username'] = username
+            return jsonify({
+                "success": True,
+                "message": "התחברות הצליחה",
+                "user": user_data
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "שם משתמש או סיסמה שגויים"
+            }), 401
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": "שגיאה בהתחברות"
+        }), 500
 
-@app.get("/restaurants/{restaurant_id}", response_model=Restaurant)
-async def get_restaurant(restaurant_id: int, current_user: db_models.User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    if not check_restaurant_access(current_user, restaurant_id):
-        raise HTTPException(status_code=403, detail="אין הרשאה לגשת למסעדה זו")
-    
-    restaurant = db.query(db_models.Restaurant).filter(db_models.Restaurant.id == restaurant_id).first()
-    if not restaurant:
-        raise HTTPException(status_code=404, detail="מסעדה לא נמצאה")
-    return restaurant
+@app.route('/api/status')
+def status():
+    return jsonify({
+        "message": "Kitchen Management API - מערכת פועלת!",
+        "data": {"version": "1.0.0"},
+        "timestamp": datetime.now().isoformat()
+    })
 
-# Protected Food Quality endpoints
-@app.get("/food-quality/", response_model=List[FoodQuality])
-async def get_food_quality(restaurant_id: Optional[int] = None, current_user: db_models.User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    query = db.query(db_models.FoodQuality)
-    
-    if current_user.role == "restaurant":
-        # משתמש מסעדה רואה רק את המסעדה שלו
-        query = query.filter(db_models.FoodQuality.restaurant_id == current_user.restaurant_id)
-    elif restaurant_id:
-        # משתמש מטה יכול לבחור מסעדה ספציפית
-        query = query.filter(db_models.FoodQuality.restaurant_id == restaurant_id)
-    
-    return query.all()
-
-@app.post("/food-quality/", response_model=FoodQuality)
-async def create_food_quality(food_quality: FoodQualityCreate, current_user: db_models.User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    # וודא שמשתמש המסעדה יכול להוסיף רק למסעדה שלו
-    if current_user.role == "restaurant" and food_quality.restaurant_id != current_user.restaurant_id:
-        raise HTTPException(status_code=403, detail="אין הרשאה להוסיף נתונים למסעדה זו")
-    
-    db_food_quality = db_models.FoodQuality(
-        chef_name=food_quality.chef_name,
-        dish_name=food_quality.dish_name,
-        score=food_quality.score,
-        notes=food_quality.notes,
-        restaurant_id=food_quality.restaurant_id
-    )
-    db.add(db_food_quality)
-    db.commit()
-    db.refresh(db_food_quality)
-    return db_food_quality
-
-@app.get("/", response_model=APIResponse)
-async def root():
-    return APIResponse(message="Kitchen Management API - עם מערכת אימות!", data={"version": "1.0.0"})
-
-@app.get("/health", response_model=APIResponse)
-async def health_check():
-    return APIResponse(message="המערכת תקינה", data={"status": "healthy", "database": "SQLite", "auth": "JWT"})
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)

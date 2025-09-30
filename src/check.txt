@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>מערכת ניהול מטבח - Test</title>
+    <style>
+        body { font-family: Arial; direction: rtl; padding: 20px; }
+        .login-form { max-width: 400px; margin: 0 auto; }
+        input, button { width: 100%; padding: 10px; margin: 10px 0; }
+        button { background: green; color: white; border: none; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <div class="login-form">
+        <h1>מערכת ניהול מטבח</h1>
+        <input type="text" id="username" placeholder="שם משתמש" value="headquarters">
+        <input type="password" id="password" placeholder="סיסמה" value="admin123">
+        <button onclick="login()">התחבר</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.innerHTML = 'מתחבר...';
+            
+            try {
+                const response = await fetch('https://giraffeclaude-1.onrender.com/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = 'התחברות הצליחה! ' + JSON.stringify(data);
+                } else {
+                    resultDiv.innerHTML = 'שגיאה: ' + (data.detail || 'שגיאה לא ידועה');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = 'שגיאת חיבור: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
