@@ -2,7 +2,6 @@ app = "giraffeclaude-phkl2a"
 primary_region = "fra"
 
 [build]
-  dockerfile = "backend/Dockerfile"
 
 [env]
   PORT = "8080"
