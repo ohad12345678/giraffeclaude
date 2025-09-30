@@ -1,4 +1,4 @@
-﻿app = "kitchen-management-giraffe"
+app = "kitchen-management-giraffe"
 
 [build]
   dockerfile = "backend/Dockerfile"
