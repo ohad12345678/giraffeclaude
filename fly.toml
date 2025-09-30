@@ -1,4 +1,5 @@
-app = "kitchen-management-giraffe"
+app = "giraffeclaude-phkl2a"
+primary_region = "fra"
 
 [build]
   dockerfile = "backend/Dockerfile"
@@ -6,17 +7,13 @@ app = "kitchen-management-giraffe"
 [env]
   PORT = "8080"
 
-[[services]]
+[http_service]
   internal_port = 8080
-  protocol = "tcp"
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
 
-  [[services.ports]]
-    handlers = ["http"]
-    port = 80
-
-  [[services.ports]]
-    handlers = ["tls", "http"]
-    port = 443
-
-
-    
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
